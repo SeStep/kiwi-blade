@@ -1,0 +1,26 @@
+{
+  "name": "sestep/kiwi-blade",
+  "description": "Personal framework made with bare hands.",
+  "type": "library",
+  "license": "MIT",
+  "authors": [
+    {
+      "name": "Thoronir42",
+      "email": "Thoronir42@Gmail.com"
+    }
+  ],
+  "require": {
+    "twig/twig": "^1.29",
+    "phpmailer/phpmailer": "^5.2"
+  },
+  "require-dev": {
+    "phpunit/phpunit": "^5.7",
+    "tracy/tracy": "^2.4"
+  },
+  "autoload": {
+    "psr-4": {
+      "KiwiBladeTests\\": "tests/",
+      "KiwiBlade\\": "src/"
+    }
+  }
+}
