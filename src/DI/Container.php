@@ -77,18 +77,19 @@ class Container
         return false;
     }
 
-    private function getServiceArgs($name){
+    private function getServiceArgs($name)
+    {
         $args = $this->getParams($name);
-        foreach ($args as $key => $value){
-            if(!is_string($value)){
+        foreach ($args as $key => $value) {
+            if (!is_string($value)) {
                 continue;
             }
             $length = strlen($value);
-            if($length < 2 || $value[0] != '%' || $value[$length - 1] != '%'){
+            if ($length < 2 || $value[0] != '%' || $value[$length - 1] != '%') {
                 continue;
             }
             $field = substr($value, 1, $length - 2);
-            if(!isset($this->params['parameters'][$field])){
+            if (!isset($this->params['parameters'][$field])) {
                 throw new ContainerException("Dynamically requested parameter $value does not exist");
             }
             $args[$key] = $this->params['parameters'][$field];
@@ -156,8 +157,13 @@ class Container
      */
     public function registerService($id, $callback, $name = null)
     {
-        if ($name && !is_string($name)) {
-            throw new ContainerException($id, 'Name must be a string, ' . gettype($name) . ' given');
+        if ($name) {
+            if (!is_string($name)) {
+                throw new ContainerException($id, 'Name must be a string, ' . gettype($name) . ' given');
+            }
+            if (isset($this->aliases[$name])) {
+                throw new ContainerException($id, 'Duplicate name detected: ' . $name);
+            }
         }
 
         $service = [
@@ -208,7 +214,7 @@ class Container
 
                 return $class->newInstanceArgs($arguments);
             } catch (\ReflectionException $ex) {
-                throw new ContainerException("Instantiation of $className failed", 0, $ex);
+                throw new ContainerException($className, "Instantiation failed", $ex);
             }
 
         }, $name);
@@ -234,7 +240,7 @@ class Container
                 try {
                     $arguments[$name] = $this->get($parClass);
                 } catch (NotFoundException $ex) {
-                    if($parameter->isDefaultValueAvailable()){
+                    if ($parameter->isDefaultValueAvailable()) {
                         $arguments[$name] = $parameter->getDefaultValue();
                     } else {
                         throw new ContainerException($ex->getMessage(), 0, $ex);
