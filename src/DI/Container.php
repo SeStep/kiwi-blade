@@ -121,7 +121,8 @@ class Container
         $class = new \ReflectionClass($factory[0]);
         $func = $class->getMethod($factory[1]);
 
-        $parameters = $class->getConstructor()->getParameters();
+        $constructor = $class->getConstructor();
+        $parameters = $constructor ? $constructor->getParameters() : [];
 
         $arguments = $this->getDependencies($factory[0], $parameters, ['args' => $args]);
 

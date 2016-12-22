@@ -49,10 +49,17 @@ class KiwiBladeExtension extends AConfiguratorExtension
             return new LinkGenerator($request, (bool)$container->getParams()['niceUrl']);
         });
 
-        $container->registerService(Dispatcher::class, function (Container $container) {
-            $pars = $container->getParams();
-            return new Dispatcher($container, $pars['wwwDir'], $pars['errorController']);
-        });
+        $container->registerService(Dispatcher::class, function (Container $container, $args = []) {
+            $args += [
+                'wwwDir' => '',
+                'controllerFormat' => '',
+                'errorController' => '',
+                'templatesSubdir' => '',
+                'layoutsSubdir' => '',
+            ];
+
+            return new Dispatcher($container, $args);
+        }, 'dispatcher');
 
         $container->registerService(\Twig_Environment::class, function (Container $container, $args) {
             /** @var LinkGenerator $linkGenerator */
@@ -61,7 +68,7 @@ class KiwiBladeExtension extends AConfiguratorExtension
             $request = $container->get(Request::class);
 
 
-            $loader = new \Twig_Loader_Filesystem($args['templateDir']);
+            $loader = new \Twig_Loader_Filesystem($container->getParams()['appDir']);
             $twig = new \Twig_Environment($loader, array(
                 /* 'cache' => __DIR__.'/cache/', */
                 'debug' => $args['debug'],

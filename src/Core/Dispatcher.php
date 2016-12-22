@@ -28,7 +28,14 @@ class Dispatcher
     private $wwwDir;
 
     /** @var string */
-    private $errorControllerClass;
+    private $controllerFormat;
+    /** @var string classname for error controller*/
+    private $errorController;
+
+    /** @var string */
+    private $templatesSubdir;
+    /** @var string */
+    private $layoutsSubdir;
 
     /** @var RequestPanel */
     private $panel;
@@ -36,15 +43,18 @@ class Dispatcher
 
     /**
      * Dispatcher constructor.
-     *
      * @param Container $container
      * @param string $wwwDir
+     * @param string $controllerFormat
+     * @param string $errorController
      */
-    public function __construct($container, $wwwDir, $errorController)
+    public function __construct(Container $container, $args)
     {
         $this->container = $container;
-        $this->wwwDir = $wwwDir;
-        $this->errorControllerClass = $errorController;
+        $fields = ['wwwDir', 'controllerFormat', 'errorController', 'templatesSubdir', 'layoutsSubdir'];
+        foreach ($fields as $field){
+            $this->$field = isset($args[$field]) ? $args[$field] : '';
+        }
     }
 
     /**
@@ -53,15 +63,14 @@ class Dispatcher
      */
     public function getControler($controllerName)
     {
-        if (!empty($controllerName)) {
-            $controllerClass = 'MojeFavka\\Controllers\\' . ucfirst($controllerName) . 'Controller';
+        $class = str_replace("%c", ucfirst($controllerName), $this->controllerFormat);
 
-            if (class_exists($controllerClass)) {
-                return new $controllerClass($this->container);
-            }
+        if (!class_exists($class)) {
+            return null;
         }
 
-        return null;
+
+        return new $class($this->container);
     }
 
     /**
@@ -109,17 +118,17 @@ class Dispatcher
             return;
         }
 
-        $this->invokeResponse($contResponse, $cont, $contName, $action);
+        $this->run($contResponse, $cont, $contName, $action);
     }
 
     /**
      *
-     * @param array $contResponse
+     * @param \ReflectionMethod[] $contResponse
      * @param Controller $cont
      * @param string $contName
      * @param string $action
      */
-    private function invokeResponse($contResponse, $cont, $contName, $action)
+    private function run($contResponse, $cont, $contName, $action)
     {
         $contResponse[self::CONTROLLER_STARTUP]->invoke($cont);
 
@@ -131,8 +140,8 @@ class Dispatcher
             $contResponse['action']->invoke($cont, null);
         }
         if (isset($contResponse[self::CONTROLLER_RENDER])) {
-            $layoutBody = $this->getLayoutPath($contName, $action);
-            if (!$layoutBody) {
+            $templatePath = $this->getTemplatePath($contName, $action);
+            if (!$templatePath) {
                 $this->error(IErrorController::NO_TEMPLATE, $contName, $action);
 
                 return;
@@ -142,18 +151,23 @@ class Dispatcher
 
             $this->addCssJs($cont, $contName, $action);
 
-            $this->render($layoutBody, $cont->getTemplate(), $cont->getLayout());
+            $this->render($templatePath, $cont->getTemplate(), $cont->getLayout());
         } else {
             $this->error(IErrorController::NO_RENDER_OR_REDIRECT, $contName, $action);
         }
     }
 
+    /**
+     * @param string $template
+     * @param mixed[] $vars
+     * @param $layout
+     */
     private function render($template, $vars, $layout)
     {
         /** @var Twig_Environment $twig */
         $twig = $this->container->get(Twig_Environment::class);
 
-        $vars['layout'] = $layout;
+        $vars['layout'] = $this->layoutsSubdir . $layout;
 
         echo $twig->render($template, $vars);
     }
@@ -163,6 +177,7 @@ class Dispatcher
      * @param Controller $cont
      * @param String $controller
      * @param String $action
+     * @deprecated
      */
     private function addCssJs($cont, $controller, $action)
     {
@@ -178,7 +193,7 @@ class Dispatcher
     private function error($errType, $contName, $action = null)
     {
         /** @var IErrorController $errCont */
-        $errCont = new $this->errorControllerClass($this->container);
+        $errCont = new $this->errorController($this->container);
         $errCont->startUp();
         $errCont->renderError($errType, $contName, $action);
 
@@ -215,17 +230,14 @@ class Dispatcher
         return $return;
     }
 
-    private function getLayoutPath($controller, $action)
+    private function getTemplatePath($controller, $action)
     {
-        $dir = $this->container->getParams('twig')['templateDir'];
-        //echo "$dir/$controller/$action.twig";
-        if (file_exists("$dir/$controller/$action.twig")) {
-            $return = "$controller/$action.twig";
-
-            return $return;
+        $path = $this->templatesSubdir . "$controller/$action.twig";
+        if (!file_exists($this->container->getParams()['appDir'] . $path)) {
+            return false;
         }
 
-        return false;
+        return $path;
     }
 
 }
