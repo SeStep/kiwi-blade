@@ -19,6 +19,7 @@
   },
   "autoload": {
     "psr-4": {
+      "KiwiBladeExtensions\\": "extensions/",
       "KiwiBladeTests\\": "tests/",
       "KiwiBlade\\": "src/"
     }
