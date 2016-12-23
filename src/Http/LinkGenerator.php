@@ -9,15 +9,17 @@ class LinkGenerator
     /** @var string */
     private $baseUrl;
     /** @var boolean */
-    private $niceUrls;
+    private $niceUrl;
     /** @var Request */
     private $request;
+    /** @var string */
+    private $currentController;
 
-    public function __construct(Request $request, $niceUrls)
+    public function __construct($baseUrl, $niceUrl, $currentController)
     {
-        $this->niceUrls = $niceUrls;
-        $this->request = $request;
-        $this->baseUrl = $request->getBaseUrl();
+        $this->baseUrl = $baseUrl;
+        $this->niceUrl = $niceUrl;
+        $this->currentController = $currentController;
     }
 
     public function linkSegmented($controller, $action = '', $parameters = [])
@@ -26,9 +28,7 @@ class LinkGenerator
             throw new InvalidArgumentException("Arguument parameters must be array, " . gettype($parameters) . ' given');
         }
 
-        $fields = [
-            'controller' => $controller,
-        ];
+        $fields = ['controller' => $controller];
         if ($action) {
             $fields['action'] = $action;
         }
@@ -45,11 +45,11 @@ class LinkGenerator
 
     public function buildQuery($fields, $baseUrl = null)
     {
-        if(!$baseUrl){
+        if (!$baseUrl) {
             $baseUrl = $this->baseUrl;
         }
 
-        if ($this->niceUrls) {
+        if ($this->niceUrl) {
             return $baseUrl . UrlHelper::buildNiceUrl($fields);
         } else {
             return $baseUrl . '?' . UrlHelper::buildQuery($fields);

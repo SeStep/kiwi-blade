@@ -23,8 +23,9 @@ class KiwiBladeExtension extends AContainerExtension
         $container->registerService(LinkGenerator::class, function (Container $container) {
             /** @var Request $request */
             $request = $container->get(Request::class);
+            $niceUrl = (bool)$container->getParams()['niceUrl'];
 
-            return new LinkGenerator($request, (bool)$container->getParams()['niceUrl']);
+            return new LinkGenerator($request->getBaseUrl(), $niceUrl, $request->getController());
         });
 
         $container->registerService(Dispatcher::class, function (Container $container, $args = []) {
