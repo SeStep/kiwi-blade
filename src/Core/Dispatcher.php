@@ -27,13 +27,6 @@ class Dispatcher
 
     /** @var Container */
     private $container;
-    /** @var string */
-    private $wwwDir;
-
-    /** @var string */
-    private $templatesSubdir;
-    /** @var string */
-    private $layoutsSubdir;
 
     /** @var RequestPanel */
     private $panel;
@@ -49,14 +42,10 @@ class Dispatcher
      * @param ControllerFactory $controllerFactory
      * @param array $args
      */
-    public function __construct(Container $container, ControllerFactory $controllerFactory, $args)
+    public function __construct(Container $container, ControllerFactory $controllerFactory)
     {
         $this->container = $container;
         $this->controllerFactory = $controllerFactory;
-        $fields = ['wwwDir', 'templatesSubdir', 'layoutsSubdir'];
-        foreach ($fields as $field) {
-            $this->$field = isset($args[$field]) ? $args[$field] : '';
-        }
     }
 
     /**
@@ -132,8 +121,6 @@ class Dispatcher
             $contResponse[self::CONTROLLER_RENDER]->invoke($cont, null);
             $contResponse[self::CONTROLLER_BEFORE_RENDER]->invoke($cont, null);
 
-            $this->addCssJs($cont, $contName, $action);
-
             $this->render($templatePath, $cont->getTemplate(), $cont->getLayout());
         } else {
             $this->error(IErrorController::NO_RENDER_OR_REDIRECT, $contName, $action);
@@ -150,27 +137,9 @@ class Dispatcher
         /** @var Twig_Environment $twig */
         $twig = $this->container->get(Twig_Environment::class);
 
-        $vars['layout'] = $this->layoutsSubdir . $layout;
+        $vars['layout'] = $layout;
 
         echo $twig->render($template, $vars);
-    }
-
-    /**
-     *
-     * @param Controller $cont
-     * @param String $controller
-     * @param String $action
-     * @deprecated
-     */
-    private function addCssJs($cont, $controller, $action)
-    {
-        $filename = $controller . "_$action";
-        if (file_exists($this->wwwDir . "/css/$filename.css")) {
-            $cont->addCss("$filename.css");
-        }
-        if (file_exists($this->wwwDir . "/js/$filename.js")) {
-            $cont->addJs("$filename.js");
-        }
     }
 
     private function error($errType, $contName, $action = null)
@@ -184,7 +153,7 @@ class Dispatcher
             $this->panel->setError(true);
         }
 
-        $this->render($this->templatesSubdir . "error/error.twig", $errCont->getTemplate(), $errCont->getLayout());
+        $this->render("error/error.twig", $errCont->getTemplate(), $errCont->getLayout());
     }
 
     /**
@@ -214,12 +183,14 @@ class Dispatcher
 
     private function getTemplatePath($controller, $action)
     {
-        $path = $this->templatesSubdir . "$controller/$action.twig";
-        if (!file_exists($this->container->getParams()['appDir'] . $path)) {
-            return false;
+        $filename = "$controller/$action.twig";
+        /** @var Twig_Environment $twig */
+        $twig = $this->container->get(Twig_Environment::class);
+        if ($twig->load($filename)) {
+            return $filename;
         }
 
-        return $path;
+        return false;
     }
 
 }

@@ -31,16 +31,13 @@ class KiwiBladeExtension extends AConfiguratorExtension
 
         $container->registerService(Dispatcher::class, function (Container $container, $args = []) {
             $args += [
-                'wwwDir' => '',
                 'controllerFormat' => '',
                 'errorController' => '',
-                'templatesSubdir' => '',
-                'layoutsSubdir' => '',
             ];
             $controllerFactory = new ControllerFactory($args['controllerFormat'], $args['errorController']);
             unset($args['controllerFormat'], $args['errorController']);
 
-            return new Dispatcher($container, $controllerFactory, $args);
+            return new Dispatcher($container, $controllerFactory);
         }, 'dispatcher');
 
         $container->registerService(\Twig_Environment::class, function (Container $container, $args) {
@@ -50,7 +47,15 @@ class KiwiBladeExtension extends AConfiguratorExtension
             $request = $container->get(Request::class);
 
 
-            $loader = new \Twig_Loader_Filesystem($container->getParams()['appDir']);
+            $loader = new \Twig_Loader_Filesystem([], $container->getParams()['appDir']);
+            foreach ($args['templatePaths'] as $namespace => $path){
+                if(is_string($namespace)){
+                    $loader->addPath($path, $namespace);
+                } else {
+                    $loader->addPath($path);
+                }
+            }
+
             $twig = new \Twig_Environment($loader, array(
                 /* 'cache' => __DIR__.'/cache/', */
                 'debug' => $args['debug'],
