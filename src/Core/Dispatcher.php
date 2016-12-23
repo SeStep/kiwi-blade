@@ -6,6 +6,9 @@ use KiwiBlade\Bridges\Tracy\RequestPanel;
 use KiwiBlade\DI\Container;
 use KiwiBlade\Helpers\SessionHelper;
 use KiwiBlade\Http\Request;
+use KiwiBlade\View\Controller;
+use KiwiBlade\View\ControllerFactory;
+use KiwiBlade\View\IErrorController;
 use ReflectionClass;
 use Tracy\Debugger;
 use Twig_Environment;
@@ -28,49 +31,32 @@ class Dispatcher
     private $wwwDir;
 
     /** @var string */
-    private $controllerFormat;
-    /** @var string classname for error controller*/
-    private $errorController;
-
-    /** @var string */
     private $templatesSubdir;
     /** @var string */
     private $layoutsSubdir;
 
     /** @var RequestPanel */
     private $panel;
+    /**
+     * @var ControllerFactory
+     */
+    private $controllerFactory;
 
 
     /**
      * Dispatcher constructor.
      * @param Container $container
-     * @param string $wwwDir
-     * @param string $controllerFormat
-     * @param string $errorController
+     * @param ControllerFactory $controllerFactory
+     * @param array $args
      */
-    public function __construct(Container $container, $args)
+    public function __construct(Container $container, ControllerFactory $controllerFactory, $args)
     {
         $this->container = $container;
-        $fields = ['wwwDir', 'controllerFormat', 'errorController', 'templatesSubdir', 'layoutsSubdir'];
-        foreach ($fields as $field){
+        $this->controllerFactory = $controllerFactory;
+        $fields = ['wwwDir', 'templatesSubdir', 'layoutsSubdir'];
+        foreach ($fields as $field) {
             $this->$field = isset($args[$field]) ? $args[$field] : '';
         }
-    }
-
-    /**
-     * @param String $controllerName
-     * @return Controller
-     */
-    public function getControler($controllerName)
-    {
-        $class = str_replace("%c", ucfirst($controllerName), $this->controllerFormat);
-
-        if (!class_exists($class)) {
-            return null;
-        }
-
-
-        return new $class($this->container);
     }
 
     /**
@@ -83,19 +69,18 @@ class Dispatcher
         $defaultContainer = $this->container->getParams()['defaultController'];
         $contName = $request->getController() ?: $defaultContainer;
 
-        $cont = $this->getControler($contName);
-
-        $defaultAction = $cont ? $cont->getDefaultAction() : '';
-        $action = $request->getAction() ?: $defaultAction;
-
-        if (class_exists('Tracy\Debugger')) {
-            Debugger::getBar()->addPanel($this->panel = new RequestPanel($contName, $action));
-        }
-
+        $cont = $this->controllerFactory->getControler($contName, $this->container);
         if (!$cont) {
             $this->error(IErrorController::NO_CONTROLLER_FOUND, $contName);
 
             return;
+        }
+
+        $defaultAction = $cont->getDefaultAction();
+        $action = $request->getAction() ?: $defaultAction;
+
+        if (class_exists(Debugger::class)) {
+            Debugger::getBar()->addPanel($this->panel = new RequestPanel($contName, $action));
         }
 
         if ($contName == $defaultContainer) {
@@ -108,9 +93,7 @@ class Dispatcher
                 $cont->redirect("$contName:$defaultAction");
             }
         }
-
-        $prepAction = ucfirst(strtolower($action));
-        $contResponse = $this->getControllerResponse($cont, $prepAction);
+        $contResponse = $this->getControllerResponse($cont, $action);
 
         if (sizeof($contResponse) < 3) {
             $this->error(IErrorController::NOT_RECOGNISED_ACTION, $contName, $action);
@@ -193,7 +176,7 @@ class Dispatcher
     private function error($errType, $contName, $action = null)
     {
         /** @var IErrorController $errCont */
-        $errCont = new $this->errorController($this->container);
+        $errCont = $this->controllerFactory->getErrorController($this->container);
         $errCont->startUp();
         $errCont->renderError($errType, $contName, $action);
 
@@ -201,7 +184,7 @@ class Dispatcher
             $this->panel->setError(true);
         }
 
-        $this->render("error/default.twig", $errCont->getTemplate(), $errCont->getLayout());
+        $this->render($this->templatesSubdir . "error/error.twig", $errCont->getTemplate(), $errCont->getLayout());
     }
 
     /**
@@ -213,14 +196,13 @@ class Dispatcher
     private function getControllerResponse($cont, $action)
     {
         $contClass = new ReflectionClass($cont);
-        $methodTypes = [self::CONTROLLER_ACTION, self::CONTROLLER_RENDER];
         $return = [
             self::CONTROLLER_STARTUP => $contClass->getMethod("startUp"),
             self::CONTROLLER_BEFORE_RENDER => $contClass->getMethod("beforeRender"),
         ];
 
-        foreach ($methodTypes as $mt) {
-            $methodName = $mt . $action;
+        foreach ([self::CONTROLLER_ACTION, self::CONTROLLER_RENDER] as $mt) {
+            $methodName = $mt . ucfirst(strtolower($action));
             if ($contClass->hasMethod($methodName)) {
                 $method = $contClass->getMethod($methodName);
                 $return[$mt] = $method;

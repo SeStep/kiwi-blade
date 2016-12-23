@@ -1,7 +1,8 @@
 <?php
 
-namespace KiwiBlade\Core;
+namespace KiwiBlade\View;
 
+use KiwiBlade\Core\Alerter;
 use KiwiBlade\DI\Container;
 use KiwiBlade\Forms\FormFactory;
 use KiwiBlade\Http\LinkGenerator;

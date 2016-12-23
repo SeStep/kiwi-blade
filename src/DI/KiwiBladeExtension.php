@@ -6,40 +6,20 @@ use KiwiBlade\Bridges\Twig\TwigKBExtension;
 use KiwiBlade\Core\Dispatcher;
 use KiwiBlade\Http\LinkGenerator;
 use KiwiBlade\Http\Request;
+use KiwiBlade\Http\RequestFactory;
 use KiwiBlade\Http\UrlHelper;
 use KiwiBlade\Mail\MailService;
+use KiwiBlade\View\ControllerFactory;
 
 class KiwiBladeExtension extends AConfiguratorExtension
 {
     public function registerServices(Configurator $configurator, Container $container)
     {
         $container->registerService(Request::class, function (Container $container) {
-            $protocol = (isset($_SERVER['HTTPS']) && !empty($_SERVER['HTTPS'])) ? "https" : "http";
-            $rootUrl = $baseUrl = $protocol . "://$_SERVER[SERVER_NAME]/";
+            $params = $container->getParams();
+            $factory = new RequestFactory($params['niceUrl'], $params['wwwSubfolder'], $params['defaultController']);
 
-            $subfolder = $container->getParams()['wwwSubfolder'];
-            if ($subfolder) {
-                $baseUrl .= "$subfolder/";
-            }
-
-            $request = new Request([
-                INPUT_POST => $_POST,
-                INPUT_GET => $_GET,
-            ], $baseUrl, $rootUrl);
-
-            if ($container->getParams()['niceUrl']) {
-                $input = UrlHelper::parseNiceString(filter_input(INPUT_GET, 'q'));
-                $controller = $input['controller'];
-                $action = $input['action'];
-            } else {
-                $controller = filter_input(INPUT_GET, 'controller') ?: '';
-                $action = filter_input(INPUT_GET, 'action') ?: '';
-            }
-            $request->setController($controller ?: $container->getParams()['defaultController']);
-            $request->setAction($action);
-
-
-            return $request;
+            return $factory->create();
         });
 
         $container->registerService(LinkGenerator::class, function (Container $container) {
@@ -57,8 +37,10 @@ class KiwiBladeExtension extends AConfiguratorExtension
                 'templatesSubdir' => '',
                 'layoutsSubdir' => '',
             ];
+            $controllerFactory = new ControllerFactory($args['controllerFormat'], $args['errorController']);
+            unset($args['controllerFormat'], $args['errorController']);
 
-            return new Dispatcher($container, $args);
+            return new Dispatcher($container, $controllerFactory, $args);
         }, 'dispatcher');
 
         $container->registerService(\Twig_Environment::class, function (Container $container, $args) {
