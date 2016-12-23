@@ -34,6 +34,9 @@ class Container
     /** @inheritdoc */
     public function get($id, $forceNewInstance = false)
     {
+        if($id == Container::class){
+            return $this;
+        }
         if (!$this->has($id)) {
             $parent = current($this->callstack) . ':' ?: '';
             throw new NotFoundException("$parent Service of type $id was not registered.");

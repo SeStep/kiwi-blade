@@ -2,18 +2,16 @@
 
 namespace KiwiBlade\DI;
 
-use KiwiBlade\Bridges\Twig\TwigKBExtension;
 use KiwiBlade\Core\Dispatcher;
 use KiwiBlade\Http\LinkGenerator;
 use KiwiBlade\Http\Request;
 use KiwiBlade\Http\RequestFactory;
-use KiwiBlade\Http\UrlHelper;
 use KiwiBlade\Mail\MailService;
 use KiwiBlade\View\ControllerFactory;
 
-class KiwiBladeExtension extends AConfiguratorExtension
+class KiwiBladeExtension extends AContainerExtension
 {
-    public function registerServices(Configurator $configurator, Container $container)
+    public function registerServices(Container $container)
     {
         $container->registerService(Request::class, function (Container $container) {
             $params = $container->getParams();
@@ -40,40 +38,7 @@ class KiwiBladeExtension extends AConfiguratorExtension
             return new Dispatcher($container, $controllerFactory);
         }, 'dispatcher');
 
-        $container->registerService(\Twig_Environment::class, function (Container $container, $args) {
-            /** @var LinkGenerator $linkGenerator */
-            $linkGenerator = $container->get(LinkGenerator::class);
-            /** @var Request $request */
-            $request = $container->get(Request::class);
-
-
-            $loader = new \Twig_Loader_Filesystem([], $container->getParams()['appDir']);
-            foreach ($args['templatePaths'] as $namespace => $path){
-                if(is_string($namespace)){
-                    $loader->addPath($path, $namespace);
-                } else {
-                    $loader->addPath($path);
-                }
-            }
-
-            $twig = new \Twig_Environment($loader, array(
-                /* 'cache' => __DIR__.'/cache/', */
-                'debug' => $args['debug'],
-            ));
-
-            $twig->addExtension(new TwigKBExtension($linkGenerator, $request->getBaseUrl(), $request->getRootUrl()));
-            if ($args['debug']) {
-                $twig->addExtension(new \Twig_Extension_Debug());
-
-            }
-            if (is_array($args['extensions'])) {
-                foreach ($args['extensions'] as $extClass) {
-                    $twig->addExtension(new $extClass());
-                }
-            }
-
-            return $twig;
-        }, 'twig');
+        $container->registerService(\Twig_Environment::class, [TwigFactory::class, 'create'], 'twig');
 
         $container->autoregisterService(MailService::class, 'mail');
     }

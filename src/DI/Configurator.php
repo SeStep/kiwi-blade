@@ -71,9 +71,9 @@ class Configurator
 
         array_unshift($this->params['extensions'], KiwiBladeExtension::class);
         foreach ($this->params['extensions'] as $extensionClass) {
-            /** @var AConfiguratorExtension $extension */
+            /** @var AContainerExtension $extension */
             $extension = new $extensionClass();
-            $extension->registerServices($this, $container);
+            $extension->registerServices($container);
         }
 
         return $container;
