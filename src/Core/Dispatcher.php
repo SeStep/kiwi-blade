@@ -55,8 +55,7 @@ class Dispatcher
     {
         SessionHelper::start();
 
-        $defaultContainer = $this->container->getParams()['defaultController'];
-        $contName = $request->getController() ?: $defaultContainer;
+        $contName = $request->getController();
 
         $cont = $this->controllerFactory->getControler($contName, $this->container);
         if (!$cont) {
@@ -72,15 +71,8 @@ class Dispatcher
             Debugger::getBar()->addPanel($this->panel = new RequestPanel($contName, $action));
         }
 
-        if ($contName == $defaultContainer) {
-            if ($action != $defaultAction) {
-                $cont->redirect("$contName:$defaultAction");
-            }
-
-        } else {
-            if (!$request->getAction()) {
-                $cont->redirect("$contName:$defaultAction");
-            }
+        if (!$request->getAction()) {
+            $cont->redirect("$contName:$defaultAction");
         }
         $contResponse = $this->getControllerResponse($cont, $action);
 

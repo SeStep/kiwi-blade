@@ -1,6 +1,6 @@
 <?php
 
-namespace KiwiBladeExtensions\UrlAlias;
+namespace KiwiBlade\UrlAlias;
 
 
 class UrlAliaser
@@ -17,43 +17,89 @@ class UrlAliaser
         $this->setControllers($controllers);
     }
 
+    /**
+     * @param string $controller raw controller name
+     * @param string $action raw action name
+     * @return array specifier array including 'controller' and 'action' offsets
+     */
     public function encode($controller, $action)
     {
-        if (array_key_exists($controller, $this->aliasMap)) {
-            if (array_key_exists($action, $this->aliasMap[$controller])) {
-                return $this->aliasMap[$controller][$action];
+        try {
+            $localised = $this->translate($this->controllers, $controller, $action, 'Real => Localised');
+            if ($this->aliasMapContains($localised['controller'], $localised['action'])) {
+                return [
+                    'controller' => $this->aliasMap[$localised['controller']][$localised['action']],
+                    'action' => '',
+                ];
             }
+
+            return $localised;
+        } catch (AliasException $ex) {
+            throw new AliasException("No alias for $controller:$action was found");
         }
-
-
-        return null;
     }
+
+    /**
+     * @param $controller
+     * @param $action
+     * @return array
+     */
+    public function tryEncodeAlias($controller, $action)
+    {
+        $exists = $this->aliasMapContains($controller, $action);
+
+        return [
+            'controller' => $exists ? $this->aliasMap[$controller][$action] : $controller,
+            'action' => $exists ? '' : $action,
+        ];
+    }
+
 
     public function aliasExists($alias)
     {
         return array_key_exists($alias, $this->aliases);
     }
 
-    public function decodeAlias($alias)
+    public function aliasMapContains($controller, $action)
     {
-        if ($this->aliasExists($alias)) {
-            return $this->aliases[$alias];
-        }
-
-        return null;
+        return array_key_exists($controller, $this->aliasMap) &&
+        array_key_exists($action, $this->aliasMap[$controller]);
     }
 
-    public function decodeParts($controller, $action){
-        if(!isset($this->localisedControllers[$controller])){
-            throw new \InvalidArgumentException("Localised controller $controller does not exist");
+    public function decodeAlias($alias)
+    {
+        return $this->aliasExists($alias) ? $this->aliases[$alias] : null;
+    }
+
+    /**
+     * @param string $controller Localised controller name
+     * @param string $action Localised action name
+     * @return array
+     */
+    public function decodeParts($controller, $action)
+    {
+        return $this->translate($this->localisedControllers, $controller, $action, 'Localised => Real');
+    }
+
+    private function translate($array, $controller, $action, $direction)
+    {
+        if (!isset($array[$controller])) {
+            throw new AliasException("Localised controller $controller does not exist in '$direction'");
         }
-        if(!isset($this->localisedControllers[$controller]['actions'][$action])){
-            throw new \InvalidArgumentException("Localised action $controller:$action does not exist");
-        }
-        return [
-            'controller' => $this->localisedControllers[$controller]['name'],
-            'action' => $this->localisedControllers[$controller]['actions'][$action],
+
+        $parts = [
+            'controller' => $array[$controller]['name'],
+            'action' => '',
         ];
+
+        if ($action) {
+            if (!isset($array[$controller]['actions'][$action])) {
+                throw new AliasException("Localised action $controller:$action does not exist in '$direction'");
+            }
+            $parts['action'] = $array[$controller]['actions'][$action];
+        }
+
+        return $parts;
     }
 
     private function setAliases($aliases)
