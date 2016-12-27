@@ -10,8 +10,6 @@ class LinkGenerator
     private $baseUrl;
     /** @var boolean */
     private $niceUrl;
-    /** @var Request */
-    private $request;
     /** @var string */
     private $currentController;
 
@@ -60,7 +58,7 @@ class LinkGenerator
     {
         $actionOnly = strpos($target, ':') === false;
         if ($actionOnly) {
-            return $this->linkSegmented($this->request->getController(), $target, $parameters);
+            return $this->linkSegmented($this->currentController, $target, $parameters);
         } else {
             $parts = explode(':', $target);
 

@@ -9,6 +9,8 @@ class Container
 {
     /** @var mixed[] */
     private $params = [];
+    /** @var mixed[] */
+    private $serviceParams = [];
     /** @var array service container with individual services or callbacks to get them */
     private $services = [];
     /** @var array name aliases for individual services */
@@ -34,7 +36,7 @@ class Container
     /** @inheritdoc */
     public function get($id, $forceNewInstance = false)
     {
-        if($id == Container::class){
+        if ($id == Container::class) {
             return $this;
         }
         if (!$this->has($id)) {
@@ -69,7 +71,7 @@ class Container
 
     private function createService(&$service)
     {
-        $args = $service['name'] ? $this->getServiceArgs($service['name']) : [];
+        $args = $service['name'] ? $this->getServiceParams($service['name']) : [];
 
         if (isset($service['callback'])) {
             return $this->createServiceByCallback($service['callback'], $args);
@@ -80,9 +82,17 @@ class Container
         return false;
     }
 
-    private function getServiceArgs($name)
+    private function getServiceParams($identifier)
     {
-        $args = $this->getParams($name);
+        list($extName, $name) = explode('.', $identifier);
+
+        if (!array_key_exists($extName, $this->serviceParams) ||
+            !array_key_exists($name, $this->serviceParams[$extName])
+        ) {
+            throw new ContainerException("Service parameters specifiaction for $identifier is missing");
+        }
+
+        $args = $this->serviceParams[$extName][$name];
         foreach ($args as $key => $value) {
             if (!is_string($value)) {
                 continue;
@@ -92,10 +102,11 @@ class Container
                 continue;
             }
             $field = substr($value, 1, $length - 2);
-            if (!isset($this->params['parameters'][$field])) {
+            if (!isset($this->params[$field])) {
+
                 throw new ContainerException("Dynamically requested parameter $value does not exist");
             }
-            $args[$key] = $this->params['parameters'][$field];
+            $args[$key] = $this->params[$field];
         }
 
         return $args;
@@ -137,20 +148,14 @@ class Container
 
     function setParameters($parameters)
     {
-        $this->params = $parameters;
+        $this->params = $parameters['parameters'];
+        unset($parameters['parameters']);
+        $this->serviceParams = $parameters;
     }
 
-    public function getParams($section = 'parameters', $default = null)
+    public function getParams()
     {
-        if (!isset($this->params[$section])) {
-            if (!is_array($default)) {
-                throw new ContainerException("Parameters section $section has to be specified");
-            }
-
-            return $default;
-        }
-
-        return $this->params[$section];
+        return $this->params;
     }
 
     /**

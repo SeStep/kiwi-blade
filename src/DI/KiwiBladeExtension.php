@@ -37,10 +37,10 @@ class KiwiBladeExtension extends AContainerExtension
             unset($args['controllerFormat'], $args['errorController']);
 
             return new Dispatcher($container, $controllerFactory);
-        }, 'dispatcher');
+        }, $this->prefix('dispatcher'));
 
-        $container->registerService(\Twig_Environment::class, [TwigFactory::class, 'create'], 'twig');
+        $container->registerService(\Twig_Environment::class, [TwigFactory::class, 'create'], $this->prefix('twig'));
 
-        $container->autoregisterService(MailService::class, 'mail');
+        $container->autoregisterService(MailService::class, $this->prefix('mail'));
     }
 }

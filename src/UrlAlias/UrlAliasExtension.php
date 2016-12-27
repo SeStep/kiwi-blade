@@ -13,7 +13,7 @@ class UrlAliasExtension extends AContainerExtension
 {
     public function registerServices(Container $container)
     {
-        $container->autoregisterService(UrlAliaser::class, 'urlAliaser');
+        $container->autoregisterService(UrlAliaser::class, $this->prefix('urlAliaser'));
         $container->registerService(LinkGenerator::class, function (Container $container){
             /** @var Request $request */
             $request = $container->get(Request::class);

@@ -2,7 +2,6 @@
 
 namespace KiwiBlade\DI;
 
-use Exception;
 
 class Configurator
 {
@@ -49,15 +48,15 @@ class Configurator
             if (!$need) {
                 return false;
             }
-            throw new Exception("File $filename was not found in the config folder.");
+            throw new ConfiguratorException("File $filename was not found in the config folder.");
         }
         $params = include $path;
         if (!is_array($params)) {
-            throw new Exception("Config file $filename did not return proper configuration");
+            throw new ConfiguratorException("Config file $filename did not return proper configuration");
         }
 
         // All new values + previously set values that weren't to be overwritten
-        $this->params = array_merge($this->params, $params);
+        $this->params = array_merge_recursive($this->params, $params);
 
         return $params;
     }
@@ -65,15 +64,28 @@ class Configurator
     /** @return Container */
     public function createContainer()
     {
+        if (array_key_exists('configFiles', $this->params) && is_array($this->params['configFiles'])) {
+            foreach ($this->params['configFiles'] as $file) {
+                $this->addConfig($file);
+            }
+        }
         $container = $this->container;
 
         $container->setParameters($this->params);
 
-        array_unshift($this->params['extensions'], KiwiBladeExtension::class);
-        foreach ($this->params['extensions'] as $extensionClass) {
+        $this->params['extensions'] = array_merge(['kb' => KiwiBladeExtension::class], $this->params['extensions']);
+
+        $registeredExtensions = [];
+        foreach ($this->params['extensions'] as $extName => $extClass) {
+            if(array_key_exists($extClass, $registeredExtensions)){
+                throw ConfiguratorException::extensionAlreadyRegistered($extClass);
+            }
+
             /** @var AContainerExtension $extension */
-            $extension = new $extensionClass();
+            $extension = new $extClass($extName);
             $extension->registerServices($container);
+
+            $registeredExtensions[$extClass] = $extName;
         }
 
         return $container;
