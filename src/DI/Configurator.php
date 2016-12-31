@@ -37,7 +37,8 @@ class Configurator
         $filenames = array_map(function ($item) {
             return $item . $this->configFileSuffix;
         }, $files);
-        die('No config file could be loaded. tried to look for ' . implode(', ', $filenames));
+
+        throw new ConfiguratorException('No config file could be loaded. tried to look for ' . implode(', ', $filenames));
     }
 
     public function addConfig($file, $need = true)

@@ -46,6 +46,10 @@ class Dispatcher
     {
         $this->container = $container;
         $this->controllerFactory = $controllerFactory;
+
+        if ($container->getParams()['environment'] == 'production') {
+            set_exception_handler([$this, 'handleException']);
+        }
     }
 
     /**
@@ -83,6 +87,14 @@ class Dispatcher
         }
 
         $this->run($contResponse, $cont, $contName, $action);
+    }
+
+    public function handleException($ex){
+        /** @var IExceptionHandler $handler */
+        $handler = $this->container->get(IExceptionHandler::class);
+        $handler->handle($ex);
+
+        $this->error(IErrorController::UNCAUGHT_EXCEPTION);
     }
 
     /**
@@ -134,7 +146,7 @@ class Dispatcher
         echo $twig->render($template, $vars);
     }
 
-    private function error($errType, $contName, $action = null)
+    private function error($errType, $contName = '', $action = '')
     {
         /** @var IErrorController $errCont */
         $errCont = $this->controllerFactory->getErrorController($this->container);
