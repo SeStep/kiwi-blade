@@ -10,12 +10,17 @@ trait JsonSending
         if ($status) {
             $data = array_merge(['status' => $status], $data);
         }
+
+        header("Content-Type: application/json");
         echo json_encode($data);
         exit;
     }
 
-    public function sendJsonSuccess($data)
+    public function sendJsonSuccess($data, $message = '')
     {
+        if($message){
+            $data = array_merge(['message' => $message], $data);
+        }
         $this->sendJson($data, 'success');
     }
 

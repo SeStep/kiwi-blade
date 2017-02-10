@@ -4,6 +4,7 @@ namespace KiwiBlade\Core;
 
 use KiwiBlade\Bridges\Tracy\RequestPanel;
 use KiwiBlade\DI\Container;
+use KiwiBlade\DI\ContainerException;
 use KiwiBlade\Helpers\SessionHelper;
 use KiwiBlade\Http\Request;
 use KiwiBlade\View\Controller;
@@ -38,9 +39,10 @@ class Dispatcher
 
     /**
      * Dispatcher constructor.
-     * @param Container $container
+     *
+     * @param Container         $container
      * @param ControllerFactory $controllerFactory
-     * @param array $args
+     * @param array             $args
      */
     public function __construct(Container $container, ControllerFactory $controllerFactory)
     {
@@ -52,10 +54,7 @@ class Dispatcher
         }
     }
 
-    /**
-     * @param Request $request
-     */
-    public function dispatch($request)
+    public function dispatch(Request $request)
     {
         SessionHelper::start();
 
@@ -89,20 +88,25 @@ class Dispatcher
         $this->run($contResponse, $cont, $contName, $action);
     }
 
-    public function handleException($ex){
-        /** @var IExceptionHandler $handler */
-        $handler = $this->container->get(IExceptionHandler::class);
-        $handler->handle($ex);
+    public function handleException($ex)
+    {
+        try {
+            /** @var IExceptionHandler $handler */
+            $handler = $this->container->get(IExceptionHandler::class);
+            $handler->handle($ex);
 
-        $this->error(IErrorController::UNCAUGHT_EXCEPTION);
+            $this->error(IErrorController::UNCAUGHT_EXCEPTION);
+        } catch (\Exception $ex) {
+            trigger_error("Exception handler failed due to unexpected exception");
+        }
     }
 
     /**
      *
      * @param \ReflectionMethod[] $contResponse
-     * @param Controller $cont
-     * @param string $contName
-     * @param string $action
+     * @param Controller          $cont
+     * @param string              $contName
+     * @param string              $action
      */
     private function run($contResponse, $cont, $contName, $action)
     {
@@ -132,9 +136,9 @@ class Dispatcher
     }
 
     /**
-     * @param string $template
+     * @param string  $template
      * @param mixed[] $vars
-     * @param $layout
+     * @param         $layout
      */
     private function render($template, $vars, $layout)
     {
@@ -163,7 +167,7 @@ class Dispatcher
     /**
      *
      * @param Controller $cont
-     * @param string $action
+     * @param string     $action
      * @return \ReflectionMethod[]
      */
     private function getControllerResponse($cont, $action)
