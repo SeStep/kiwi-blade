@@ -9,27 +9,10 @@ use KiwiBlade\Http\Request;
 
 class TwigFactory
 {
-    /** @var Container */
-    private $container;
-    /** @var mixed[] */
-    private $args;
-
-    public function __construct(Container $container, $args)
+    public function create(LinkGenerator $linkGenerator, Request $request, $args)
     {
-        $this->container = $container;
-        $this->args = $args;
-    }
-
-    public function create()
-    {
-        /** @var LinkGenerator $linkGenerator */
-        $linkGenerator = $this->container->get(LinkGenerator::class);
-        /** @var Request $request */
-        $request = $this->container->get(Request::class);
-
-
-        $loader = new \Twig_Loader_Filesystem([], $this->container->getParams()['appDir']);
-        foreach ($this->args['templatePaths'] as $namespace => $path) {
+        $loader = new \Twig_Loader_Filesystem([], $args['appDir']);
+        foreach ($args['templatePaths'] as $namespace => $path) {
             if (is_string($namespace)) {
                 $loader->addPath($path, $namespace);
             } else {
@@ -39,16 +22,16 @@ class TwigFactory
 
         $twig = new \Twig_Environment($loader, array(
             /* 'cache' => __DIR__.'/cache/', */
-            'debug' => $this->args['debug'],
+            'debug' => $args['debug'],
         ));
 
         $twig->addExtension(new TwigKBExtension($linkGenerator, $request->getBaseUrl(), $request->getRootUrl()));
-        if ($this->args['debug']) {
+        if ($args['debug']) {
             $twig->addExtension(new \Twig_Extension_Debug());
 
         }
-        if (is_array($this->args['extensions'])) {
-            foreach ($this->args['extensions'] as $extClass) {
+        if (is_array($args['extensions'])) {
+            foreach ($args['extensions'] as $extClass) {
                 $twig->addExtension(new $extClass());
             }
         }

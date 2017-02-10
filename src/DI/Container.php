@@ -41,7 +41,7 @@ class Container
         }
         if (!$this->has($id)) {
             $parent = current($this->callstack) . ':' ?: '';
-            throw new NotFoundException("$parent Service of type $id was not registered.");
+            throw new NotFoundException("get($parent) failed because service of type $id was not registered.");
         }
 
         if (in_array($id, $this->callstack)) {
@@ -53,14 +53,7 @@ class Container
         $service = $this->services[$id];
 
         if ($forceNewInstance || !$service['instance']) {
-            $service['instance'] = $this->createService($service);
-            if ($service['instance'] === false) {
-                throw new ContainerException($id, "No method to create instance provided");
-            }
-
-            if (!($service['instance'] instanceof $id)) {
-                throw new ContainerException("Service $id callback returned errorneous type: " . get_class($service['instance']));
-            }
+            $service['instance'] = $this->createService($service, $id);
             $this->services[$id] = $service;
         }
 
@@ -69,31 +62,36 @@ class Container
         return $service['instance'];
     }
 
-    private function createService(&$service)
+    /**
+     * @param $service
+     * @param $id
+     * @return mixed
+     * @throws ContainerException
+     */
+    private function createService(&$service, $id)
     {
         $args = $service['name'] ? $this->getServiceParams($service['name']) : [];
 
         if (isset($service['callback'])) {
-            return $this->createServiceByCallback($service['callback'], $args);
+            $instance = $this->createServiceByCallback($service['callback'], $args);
+            if (!($instance instanceof $id)) {
+                throw new ContainerException("Service $id callback returned errorneous type: " . get_class($instance));
+            }
+
+            return $instance;
         } elseif (isset($service['factory'])) {
             return $this->createServiceByFactory($service['factory'], $args);
         }
 
-        return false;
+        throw new ContainerException($id, "No method to create instance provided");
     }
 
-    private function getServiceParams($identifier)
+    private function replaceDynamicArguments($array)
     {
-        list($extName, $name) = explode('.', $identifier);
-
-        if (!array_key_exists($extName, $this->serviceParams) ||
-            !array_key_exists($name, $this->serviceParams[$extName])
-        ) {
-            throw new ContainerException("Service parameters specifiaction for $identifier is missing");
-        }
-
-        $args = $this->serviceParams[$extName][$name];
-        foreach ($args as $key => $value) {
+        foreach ($array as $key => &$value) {
+            if (is_array($value)) {
+                $array[$key] = $this->replaceDynamicArguments($value);
+            }
             if (!is_string($value)) {
                 continue;
             }
@@ -103,11 +101,26 @@ class Container
             }
             $field = substr($value, 1, $length - 2);
             if (!isset($this->params[$field])) {
-
                 throw new ContainerException("Dynamically requested parameter $value does not exist");
             }
-            $args[$key] = $this->params[$field];
+            $array[$key] = $this->params[$field];
         }
+
+        return $array;
+    }
+
+    private function getServiceParams($identifier)
+    {
+        list($extName, $name) = explode('.', $identifier);
+
+        if (!array_key_exists($extName, $this->serviceParams) || !array_key_exists($name,
+                $this->serviceParams[$extName])
+        ) {
+            throw new ContainerException("Service parameters specifiaction for $identifier is missing");
+        }
+
+        $args = $this->serviceParams[$extName][$name];
+        $args = $this->replaceDynamicArguments($args);
 
         return $args;
     }
@@ -136,14 +149,16 @@ class Container
         $func = $class->getMethod($factory[1]);
 
         $constructor = $class->getConstructor();
-        $parameters = $constructor ? $constructor->getParameters() : [];
+        if ($constructor) {
+            $arguments = $this->getDependencies($constructor, $args);
+            $factoryInstance = $class->newInstanceArgs($arguments);
+        } else {
+            $factoryInstance = $class->newInstance();
+        }
 
-        $arguments = $this->getDependencies($factory[0], $parameters, ['args' => $args]);
+        $arguments = $this->getDependencies($func, $args);
 
-        $factoryInstance = $class->newInstanceArgs($arguments);
-
-        return $func->invoke($factoryInstance);
-
+        return $func->invokeArgs($factoryInstance, $arguments);
     }
 
     function setParameters($parameters)
@@ -158,13 +173,7 @@ class Container
         return $this->params;
     }
 
-    /**
-     * @param $id
-     * @param $callback callable($args = [])
-     * @param string|null $name
-     * @throws ContainerException
-     */
-    public function registerService($id, $callback, $name = null)
+    private function defineService($id, $type, $creator, $name = '')
     {
         if ($name) {
             if (!is_string($name)) {
@@ -175,66 +184,68 @@ class Container
             }
         }
 
-        $service = [
+        $this->services[$id] = [
             'instance' => null,
             'name' => $name,
+            $type => $creator,
         ];
-
-        if (is_array($callback)) {
-            if (!isset($callback[0]) || !isset($callback[1])) {
-                throw new ContainerException($id, 'Factory callback invalid fields');
-            }
-            if (!class_exists($callback[0])) {
-                throw new ContainerException($id, "Factory class '$callback[0]' does not exist");
-            }
-            if (!method_exists($callback[0], $callback[1])) {
-                throw new ContainerException($id,
-                    "Factory class '$callback[0]' does not contain method '$callback[1]'");
-            }
-            $service['factory'] = $callback;
-        } else {
-            $service['callback'] = $callback;
-        }
-
-
-        $this->services[$id] = $service;
 
         if ($name) {
             $this->aliases[$name] = $id;
         }
     }
 
-    public function autoregisterService($className, $name = null)
+    /**
+     * @param             $id
+     * @param             $callback callable($args = [])
+     * @param string|null $name
+     * @throws ContainerException
+     */
+    public function registerService($id, $callback, $name = '')
     {
-        $this->registerService($className, function ($args = []) use ($className) {
+        $this->defineService($id, 'callback', $callback, $name);
+    }
+
+    public function registerServiceFactory($id, $factory, $name = '')
+    {
+        if (!isset($factory[0]) || !isset($factory[1])) {
+            throw new ContainerException($id, 'Factory callback invalid fields');
+        }
+        if (!class_exists($factory[0])) {
+            throw new ContainerException($id, "Factory class '$factory[0]' does not exist");
+        }
+        if (!method_exists($factory[0], $factory[1])) {
+            throw new ContainerException($id, "Factory class '$factory[0]' does not contain method '$factory[1]'");
+        }
+
+        $this->defineService($id, 'factory', $factory, $name);
+    }
+
+    public function autoregisterService($className, $name = '')
+    {
+        $callback = function ($args = []) use ($className) {
             try {
                 $class = new \ReflectionClass($className);
 
-                $parameters = $class->getConstructor()->getParameters();
-
-                $surplus = $this->verifyArguments($parameters, $args);
-                if (!empty($surplus)) {
-                    throw new ContainerException("Config arguments of service $className contain these invalid fields " .
-                        implode(', ', $surplus));
-                }
-
-                $arguments = $this->getDependencies($className, $parameters, $args);
-
+                $arguments = $this->getDependencies($class->getConstructor(), $args);
 
                 return $class->newInstanceArgs($arguments);
             } catch (\ReflectionException $ex) {
                 throw new ContainerException($className, "Instantiation failed", $ex);
             }
-
-        }, $name);
+        };
+        $this->registerService($className, $callback, $name);
     }
 
     /**
-     * @param \ReflectionParameter[] $parameters
-     * @throws ContainerException
+     * @param \ReflectionMethod $function
+     * @param array             $args
+     * @return \mixed[]
      */
-    private function getDependencies($className, $parameters, $args = [])
+    private function getDependencies($function, $args = [])
     {
+        $parameters = $function->getParameters();
+
         $arguments = [];
         foreach ($parameters as $parameter) {
             $name = $parameter->getName();
@@ -254,35 +265,20 @@ class Container
                     } else {
                         throw new ContainerException($ex->getMessage(), 0, $ex);
                     }
-
                 }
-
             } elseif ($parameter->isDefaultValueAvailable()) {
                 $arguments[$name] = $parameter->getDefaultValue();
             } else {
-                throw new ContainerException("Argument $name of class $className does not have type hint or " .
-                    "default value.");
+                $functionName = $function->getDeclaringClass()->getName() . "->" . $function->getName();
+                throw new ContainerException("Argument $name of function $functionName does not have type hint or default value.");
             }
         }
 
         return $arguments;
     }
 
-    /**
-     * @param \ReflectionParameter[] $parameters
-     * @param array $args
-     * @return array
-     */
-    private function verifyArguments($parameters, $args = [])
+    public function resetCallstack()
     {
-        $assocParameters = [];
-        foreach ($parameters as $parameter) {
-            $assocParameters[$parameter->getName()] = $parameter;
-        }
-
-        $diff = array_diff_key($args, $assocParameters);
-
-        return array_keys($diff);
-
+        $this->callstack = [];
     }
 }

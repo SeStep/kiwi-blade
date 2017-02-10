@@ -13,12 +13,7 @@ class KiwiBladeExtension extends AContainerExtension
 {
     public function registerServices(Container $container)
     {
-        $container->registerService(Request::class, function (Container $container) {
-            $params = $container->getParams();
-            $factory = new RequestFactory($params['niceUrl'], $params['wwwSubfolder'], $params['defaultController']);
-
-            return $factory->create();
-        });
+        $container->registerServiceFactory(Request::class, [RequestFactory::class, 'create'], $this->prefix('request'));
 
         $container->registerService(LinkGenerator::class, function (Container $container) {
             /** @var Request $request */
@@ -39,7 +34,7 @@ class KiwiBladeExtension extends AContainerExtension
             return new Dispatcher($container, $controllerFactory);
         }, $this->prefix('dispatcher'));
 
-        $container->registerService(\Twig_Environment::class, [TwigFactory::class, 'create'], $this->prefix('twig'));
+        $container->registerServiceFactory(\Twig_Environment::class, [TwigFactory::class, 'create'], $this->prefix('twig'));
 
         $container->autoregisterService(MailService::class, $this->prefix('mail'));
     }

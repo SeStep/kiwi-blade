@@ -11,56 +11,89 @@ use PHPUnit\Framework\TestCase;
 
 class ContainerTest extends TestCase
 {
-    /** @var Container */
-    private $container;
-
-    public function setUp()
-    {
-        $this->container = new Container();
-        $this->container->autoregisterService(CyclicDependencyDummy::class);
-        $this->container->registerService(FormFactory::class, function () {
-            return new FormFactory();
-        });
-        $this->container->setParameters([
-            'parameters' => [
-                'one' => 1,
-                'twelve' => 12,
-            ],
-            'ab' => [
-                'a' => '%one%',
-                'b' => '%twelve%',
-            ],
-        ]);
-        $this->container->autoregisterService(ABDummy::class, 'ab');
-    }
-
     public function testGetExistingService()
     {
-        $instance = $this->container->get(FormFactory::class);
+        $container = new Container();
+        $container->registerService(FormFactory::class, function () {
+            return new FormFactory();
+        });
+
+        $instance = $container->get(FormFactory::class);
         Assert::assertEquals(FormFactory::class, get_class($instance));
     }
 
     public function testGetUnregisteredService()
     {
+        $container = new Container();
+
         $this->expectException(NotFoundException::class);
-        $this->container->get(\PDO::class);
+        $container->get(\PDO::class);
     }
 
     public function testGetCyclicDependentService()
     {
+        $container = new Container();
+        $container->autoregisterService(CyclicDependencyDummy::class);
+
         $this->expectException(ContainerException::class);
-        $this->container->get(CyclicDependencyDummy::class);
+        $container->get(CyclicDependencyDummy::class);
     }
 
-    public function testDynamicParameterAssign(){
+    public function testDynamicParameterAssign()
+    {
+        $container = new Container();
+        $container->setParameters([
+            'parameters' => [
+                'one' => 1,
+                'twelve' => 12,
+            ],
+            'test' => [
+                'ab' => [
+                    'a' => '%one%',
+                    'b' => '%twelve%',
+                ],
+            ],
+        ]);
+        $container->autoregisterService(ABDummy::class, 'test.ab');
+
         /** @var ABDummy $abDummy */
-        $abDummy = $this->container->get(ABDummy::class);
-        if(get_class($abDummy) != ABDummy::class){
+        $abDummy = $container->get(ABDummy::class);
+        if (get_class($abDummy) != ABDummy::class) {
             Assert::markTestSkipped("Did not get ABDummy testing class");
+
             return;
         }
 
-        Assert::assertEquals($this->container->getParams()['one'], $abDummy->a);
-        Assert::assertEquals($this->container->getParams()['twelve'], $abDummy->b);
+        Assert::assertEquals($container->getParams()['one'], $abDummy->a);
+        Assert::assertEquals($container->getParams()['twelve'], $abDummy->b);
+    }
+
+    public function testFactoryParametrized()
+    {
+        $container = new Container();
+
+        $container->setParameters([
+            'parameters' => [],
+            'test' => [
+                'factoryService' => [
+                    'path' => 'desired/path',
+                    'b' => 6,
+                ],
+            ],
+        ]);
+
+        $container->registerService(FormFactory::class, function () {
+            return new FormFactory();
+        });
+        $container->registerServiceFactory(ComplexServiceDummy::class, [ComplexServiceDummyFactory::class, 'create'],
+            'test.factoryService');
+
+        /** @var ComplexServiceDummy $service */
+        $service = $container->get(ComplexServiceDummy::class);
+        Assert::assertTrue($service instanceof ComplexServiceDummy, "Complex service dummy should be of correct class");
+        Assert::assertTrue($service->formFactory instanceof FormFactory,
+            "Complex service dummy form factory should be of correct class");
+        Assert::assertEquals($service->path, 'desired/path');
+        Assert::assertEquals($service->b, 6);
     }
 }
