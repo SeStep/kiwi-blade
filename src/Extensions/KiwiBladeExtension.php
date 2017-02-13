@@ -17,24 +17,16 @@ class KiwiBladeExtension extends AContainerExtension
     {
         $container->registerServiceFactory(Request::class, [RequestFactory::class, 'create'], $this->prefix('request'));
 
-        $container->registerService(LinkGenerator::class, function (Container $container) {
-            /** @var Request $request */
-            $request = $container->get(Request::class);
-            $niceUrl = (bool)$container->getParams()['niceUrl'];
-
+        $container->registerService(LinkGenerator::class, function (Request $request, $niceUrl) {
             return new LinkGenerator($request->getBaseUrl(), $niceUrl, $request->getController());
-        });
+        }, $this->prefix('linkGenerator'));
 
-        $container->registerService(Dispatcher::class, function (Container $container, $args = []) {
-            $args += [
-                'controllerFormat' => '',
-                'errorController' => '',
-            ];
-            $controllerFactory = new ControllerFactory($args['controllerFormat'], $args['errorController']);
-            unset($args['controllerFormat'], $args['errorController']);
+        $container->registerService(Dispatcher::class,
+            function (Container $container, $controllerFormat, $errorController) {
+                $controllerFactory = new ControllerFactory($controllerFormat, $errorController);
 
-            return new Dispatcher($container, $controllerFactory);
-        }, $this->prefix('dispatcher'));
+                return new Dispatcher($container, $controllerFactory);
+            }, $this->prefix('dispatcher'));
 
         $container->autoregisterService(MailService::class, $this->prefix('mail'));
     }

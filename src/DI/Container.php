@@ -79,14 +79,11 @@ class Container
         $args = $service['name'] ? $this->getServiceParams($service['name']) : [];
 
         if (isset($service['callback'])) {
-            $instance = $this->createServiceByCallback($service['callback'], $args);
-            if (!($instance instanceof $id)) {
-                throw new ContainerException("Service $id callback returned errorneous type: " . get_class($instance));
-            }
-
-            return $instance;
+            return $this->createServiceByCallback($service['callback'], $args);
         } elseif (isset($service['factory'])) {
             return $this->createServiceByFactory($service['factory'], $args);
+        } elseif (isset($service['constructor'])) {
+            return $this->createServiceByConstructor($service['constructor'], $args);
         }
 
         throw new ContainerException($id, "No method to create instance provided");
@@ -134,7 +131,7 @@ class Container
     private function createServiceByCallback($callback, $args = [])
     {
         $func = new \ReflectionFunction($callback);
-        $funcArgs = $this->getDependencies($func, ['args' => $args]);
+        $funcArgs = $this->getDependencies($func, $args);
 
         return call_user_func_array($callback, $funcArgs);
     }
@@ -155,6 +152,16 @@ class Container
         $arguments = $this->getDependencies($func, $args);
 
         return $func->invokeArgs($factoryInstance, $arguments);
+    }
+
+    private function createServiceByConstructor($class, $args = [])
+    {
+        $reflectionClass = new \ReflectionClass($class);
+        $constructor = $reflectionClass->getConstructor();
+
+        $funcArgs = $this->getDependencies($constructor, $args);
+
+        return $reflectionClass->newInstanceArgs($funcArgs);
     }
 
     public function getParams()
@@ -212,23 +219,12 @@ class Container
 
     public function autoregisterService($className, $name = '')
     {
-        $callback = function ($args = []) use ($className) {
-            try {
-                $class = new \ReflectionClass($className);
-
-                $arguments = $this->getDependencies($class->getConstructor(), $args);
-
-                return $class->newInstanceArgs($arguments);
-            } catch (\ReflectionException $ex) {
-                throw new ContainerException($className, "Instantiation failed", $ex);
-            }
-        };
-        $this->registerService($className, $callback, $name);
+        $this->defineService($className, 'constructor', $className, $name);
     }
 
     /**
      * @param \ReflectionMethod|\ReflectionFunction $function
-     * @param array             $args
+     * @param array                                 $args
      * @return \mixed[]
      */
     private function getDependencies($function, $args = [])
@@ -258,7 +254,7 @@ class Container
             } elseif ($parameter->isDefaultValueAvailable()) {
                 $arguments[$name] = $parameter->getDefaultValue();
             } else {
-                $functionName = $function->getDeclaringClass()->getName() . "->" . $function->getName();
+                $functionName = $this->getFunctionName($function);
                 throw new ContainerException("Argument $name of function $functionName does not have type hint or default value.");
             }
         }
@@ -266,8 +262,23 @@ class Container
         return $arguments;
     }
 
-    public function resetCallstack()
+    /**
+     * @param \ReflectionMethod|\ReflectionFunction $function
+     * @return string
+     */
+    private function getFunctionName($function)
     {
-        $this->callstack = [];
+
+        if ($function instanceof \ReflectionMethod) {
+            return $function->getDeclaringClass()->getName() . "->" . $function->getName();
+        } elseif ($function instanceof \ReflectionFunction && $function->isClosure()) {
+            $class = $function->getClosureScopeClass()->getName();
+            $line = $function->getStartLine();
+
+            return "Closure $class:$line";
+        }
+        trigger_error("Function name not recognized");
+
+        return "Unknown function name";
     }
 }

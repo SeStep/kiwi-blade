@@ -13,9 +13,9 @@ class TwigExtension extends AContainerExtension
 {
     public function registerServices(Container $container)
     {
-        $container->registerService(\Twig_Loader_Filesystem::class, function ($args) {
-            $loader = new \Twig_Loader_Filesystem([], $args['appDir']);
-            foreach ($args['templatePaths'] as $namespace => $path) {
+        $container->registerService(\Twig_Loader_Filesystem::class, function ($appDir, $templatePaths) {
+            $loader = new \Twig_Loader_Filesystem([], $appDir);
+            foreach ($templatePaths as $namespace => $path) {
                 if (is_string($namespace)) {
                     $loader->addPath($path, $namespace);
                 } else {
@@ -25,31 +25,37 @@ class TwigExtension extends AContainerExtension
 
             return $loader;
         }, $this->prefix('loader'));
-        $container->registerService(\Twig_Environment::class,
-            function (\Twig_Loader_Filesystem $loader, LinkGenerator $linkGenerator, Request $request, $args) {
-                $environmentConfig = [
-                    'debug' => $args['debug'],
-                ];
-                if (array_key_exists('cache', $args) && is_string($args['cache'])) {
-                    $environmentConfig['cache'] = $args['cache'];
+        $container->registerService(\Twig_Environment::class, function (
+            \Twig_Loader_Filesystem $loader,
+            LinkGenerator $linkGenerator,
+            Request $request,
+            $debug,
+            $extensions = [],
+            $cache = ''
+        ) {
+            $environmentConfig = [
+                'debug' => $debug,
+            ];
+            if ($cache && is_string($cache)) {
+                $environmentConfig['cache'] = $cache;
+            }
+
+            $twig = new \Twig_Environment($loader, $environmentConfig);
+
+            $twig->addFunction(new Twig_SimpleFunction('link', [$linkGenerator, 'link']));
+            $twig->addGlobal('baseUrl', $request->getBaseUrl());
+            $twig->addGlobal('rootUrl', $request->getRootUrl());
+
+            if ($debug) {
+                $twig->addExtension(new \Twig_Extension_Debug());
+            }
+            if (is_array($extensions)) {
+                foreach ($extensions as $extClass) {
+                    $twig->addExtension(new $extClass());
                 }
+            }
 
-                $twig = new \Twig_Environment($loader, $environmentConfig);
-
-                $twig->addFunction(new Twig_SimpleFunction('link', [$linkGenerator, 'link']));
-                $twig->addGlobal('baseUrl', $request->getBaseUrl());
-                $twig->addGlobal('rootUrl', $request->getRootUrl());
-
-                if ($args['debug']) {
-                    $twig->addExtension(new \Twig_Extension_Debug());
-                }
-                if (is_array($args['extensions'])) {
-                    foreach ($args['extensions'] as $extClass) {
-                        $twig->addExtension(new $extClass());
-                    }
-                }
-
-                return $twig;
-            }, $this->prefix('environment'));
+            return $twig;
+        }, $this->prefix('environment'));
     }
 }
