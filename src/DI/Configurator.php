@@ -54,9 +54,25 @@ class Configurator
         }
 
         // All new values + previously set values that weren't to be overwritten
-        $this->config = array_merge_recursive($this->config, $params);
+        $this->addConfigValues($this->config, $params);
 
         return $params;
+    }
+
+    private function addConfigValues(&$currentArray, $newValues)
+    {
+        foreach ($newValues as $key => $value) {
+            if (!array_key_exists($key, $currentArray)) {
+                $currentArray[$key] = $value;
+                continue;
+            }
+
+            if (is_array($currentArray[$key]) && is_array($value)) {
+                $this->addConfigValues($currentArray[$key], $value);
+                continue;
+            }
+            $currentArray[$key] = $value;
+        }
     }
 
     /**
