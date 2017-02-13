@@ -1,8 +1,10 @@
 <?php
 
-namespace KiwiBlade\DI;
+namespace KiwiBlade\Extensions;
 
 use KiwiBlade\Core\Dispatcher;
+use KiwiBlade\DI\AContainerExtension;
+use KiwiBlade\DI\Container;
 use KiwiBlade\Http\LinkGenerator;
 use KiwiBlade\Http\Request;
 use KiwiBlade\Http\RequestFactory;
@@ -33,8 +35,6 @@ class KiwiBladeExtension extends AContainerExtension
 
             return new Dispatcher($container, $controllerFactory);
         }, $this->prefix('dispatcher'));
-
-        $container->registerServiceFactory(\Twig_Environment::class, [TwigFactory::class, 'create'], $this->prefix('twig'));
 
         $container->autoregisterService(MailService::class, $this->prefix('mail'));
     }

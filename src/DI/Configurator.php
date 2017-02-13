@@ -3,17 +3,16 @@
 namespace KiwiBlade\DI;
 
 
+use KiwiBlade\Extensions\KiwiBladeExtension;
+
 class Configurator
 {
     /** @var mixed[] */
-    private $params = [];
+    private $config = [];
     /** @var string */
     private $configDirectory;
     /** @var string */
     private $configFileSuffix;
-
-    /** @var Container */
-    private $container;
 
     public function __construct($configDirectory, $configFileSuffix = '.config.php')
     {
@@ -22,8 +21,6 @@ class Configurator
         }
         $this->configDirectory = $configDirectory;
         $this->configFileSuffix = $configFileSuffix;
-
-        $this->container = new Container();
     }
 
     public function addFirstExistingConfig($files = [])
@@ -57,38 +54,53 @@ class Configurator
         }
 
         // All new values + previously set values that weren't to be overwritten
-        $this->params = array_merge_recursive($this->params, $params);
+        $this->config = array_merge_recursive($this->config, $params);
 
         return $params;
     }
 
-    /** @return Container */
+    /**
+     * @return Container
+     * @throws ConfiguratorException
+     */
     public function createContainer()
     {
-        if (array_key_exists('configFiles', $this->params) && is_array($this->params['configFiles'])) {
-            foreach ($this->params['configFiles'] as $file) {
+        if (array_key_exists('configFiles', $this->config) && is_array($this->config['configFiles'])) {
+            foreach ($this->config['configFiles'] as $file) {
                 $this->addConfig($file);
             }
         }
-        $container = $this->container;
 
-        $container->setParameters($this->params);
+        $params = $this->config['parameters'];
+        $extensionParams = $this->config;
+        unset($extensionParams['parameters']);
 
-        $this->params['extensions'] = array_merge(['kb' => KiwiBladeExtension::class], $this->params['extensions']);
+        $container = new Container($params, $extensionParams);
+        $extensions = array_merge(['kb' => KiwiBladeExtension::class], $this->config['extensions']);
 
+        $this->registerExtensionsTo($container, $extensions, $extensionParams);
+
+        return $container;
+    }
+
+    /**
+     * @param Container $container
+     * @param string[]  $extensions
+     * @throws ConfiguratorException
+     */
+    private function registerExtensionsTo(Container $container, $extensions, $params){
         $registeredExtensions = [];
-        foreach ($this->params['extensions'] as $extName => $extClass) {
+        foreach ($extensions as $extName => $extClass) {
             if(array_key_exists($extClass, $registeredExtensions)){
                 throw ConfiguratorException::extensionAlreadyRegistered($extClass);
             }
+            $args = isset($params[$extName]) ? $params[$extName] : [];
 
             /** @var AContainerExtension $extension */
-            $extension = new $extClass($extName);
+            $extension = new $extClass($extName, $args);
             $extension->registerServices($container);
 
             $registeredExtensions[$extClass] = $extName;
         }
-
-        return $container;
     }
 }

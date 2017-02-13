@@ -10,13 +10,19 @@ class Container
     /** @var mixed[] */
     private $params = [];
     /** @var mixed[] */
-    private $serviceParams = [];
+    private $extensionParams = [];
     /** @var array service container with individual services or callbacks to get them */
     private $services = [];
     /** @var array name aliases for individual services */
     private $aliases = [];
 
     private $callstack = [];
+
+    public function __construct($parameters, $extensionParams = [])
+    {
+        $this->params = $parameters;
+        $this->extensionParams = $extensionParams;
+    }
 
     public function getByName($name)
     {
@@ -113,13 +119,13 @@ class Container
     {
         list($extName, $name) = explode('.', $identifier);
 
-        if (!array_key_exists($extName, $this->serviceParams) || !array_key_exists($name,
-                $this->serviceParams[$extName])
+        if (!array_key_exists($extName, $this->extensionParams) || !array_key_exists($name,
+                $this->extensionParams[$extName])
         ) {
             throw new ContainerException("Service parameters specifiaction for $identifier is missing");
         }
 
-        $args = $this->serviceParams[$extName][$name];
+        $args = $this->extensionParams[$extName][$name];
         $args = $this->replaceDynamicArguments($args);
 
         return $args;
@@ -128,17 +134,7 @@ class Container
     private function createServiceByCallback($callback, $args = [])
     {
         $func = new \ReflectionFunction($callback);
-        $funcArgs = [];
-        foreach ($func->getParameters() as $parameter) {
-            $parameterClass = $parameter->getClass();
-            if ($parameterClass && $parameterClass->getName() == Container::class) {
-                $funcArgs[$parameter->getName()] = $this;
-            } elseif ($parameter->getName() == 'args') {
-                $funcArgs[$parameter->getName()] = $args;
-            } else {
-                throw new ContainerException("Could not assign callback argument " . $parameter->getName());
-            }
-        }
+        $funcArgs = $this->getDependencies($func, ['args' => $args]);
 
         return call_user_func_array($callback, $funcArgs);
     }
@@ -159,13 +155,6 @@ class Container
         $arguments = $this->getDependencies($func, $args);
 
         return $func->invokeArgs($factoryInstance, $arguments);
-    }
-
-    function setParameters($parameters)
-    {
-        $this->params = $parameters['parameters'];
-        unset($parameters['parameters']);
-        $this->serviceParams = $parameters;
     }
 
     public function getParams()
@@ -238,7 +227,7 @@ class Container
     }
 
     /**
-     * @param \ReflectionMethod $function
+     * @param \ReflectionMethod|\ReflectionFunction $function
      * @param array             $args
      * @return \mixed[]
      */
