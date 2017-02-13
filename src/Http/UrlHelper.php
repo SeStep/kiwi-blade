@@ -5,6 +5,9 @@ namespace KiwiBlade\Http;
 
 class UrlHelper
 {
+    const CONTROLLER = 'controller';
+    const ACTION = 'action';
+
     public static function parseNiceString($string, $separator = '/')
     {
         $parts = explode($separator, $string);
@@ -12,8 +15,8 @@ class UrlHelper
         $controller = array_shift($parts) ?: '';
         $action = array_shift($parts) ?: '';
 
-        $parts['controller'] = $controller;
-        $parts['action'] = $action;
+        $parts[self::CONTROLLER] = $controller;
+        $parts[self::ACTION] = $action;
 
         return $parts;
     }
@@ -24,13 +27,13 @@ class UrlHelper
         if (empty($params)) {
             return $return;
         }
-        if (isset($params['controller'])) {
-            $return .= $params['controller'] . $separator;
-            unset($params['controller']);
+        if (isset($params[self::CONTROLLER])) {
+            $return .= $params[self::CONTROLLER] . $separator;
+            unset($params[self::CONTROLLER]);
         }
-        if (isset($params['action'])) {
-            $return .= $params['action'] . $separator;
-            unset($params['action']);
+        if (isset($params[self::ACTION])) {
+            $return .= $params[self::ACTION] . $separator;
+            unset($params[self::ACTION]);
         }
 
         return $return . self::buildQuery($params);

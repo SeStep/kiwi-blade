@@ -14,6 +14,7 @@ class ControllerFactory
 
     /**
      * ControllerFactory constructor.
+     *
      * @param string $controllerFormat
      * @param string $errorController
      */
@@ -24,7 +25,8 @@ class ControllerFactory
     }
 
     /**
-     * @param String $name
+     * @param String    $name
+     * @param Container $container
      * @return Controller
      */
     public function getControler($name, Container $container)

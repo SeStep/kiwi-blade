@@ -20,6 +20,18 @@ class LinkGenerator
         $this->currentController = $currentController;
     }
 
+    public function link($target, $parameters = [])
+    {
+        $actionOnly = strpos($target, ':') === false;
+        if ($actionOnly) {
+            return $this->linkSegmented($this->currentController, $target, $parameters);
+        } else {
+            $parts = explode(':', $target);
+
+            return $this->linkSegmented($parts[0], $parts[1], $parameters);
+        }
+    }
+
     public function linkSegmented($controller, $action = '', $parameters = [])
     {
         if (!is_array($parameters)) {
@@ -37,11 +49,10 @@ class LinkGenerator
             }
         }
 
-
-        return $this->buildQuery($fields);
+        return $this->createLink($fields);
     }
 
-    public function buildQuery($fields, $baseUrl = null)
+    public function createLink($fields, $baseUrl = null)
     {
         if (!$baseUrl) {
             $baseUrl = $this->baseUrl;
@@ -52,27 +63,5 @@ class LinkGenerator
         } else {
             return $baseUrl . '?' . UrlHelper::buildQuery($fields);
         }
-    }
-
-    public function link($target, $parameters = [])
-    {
-        $actionOnly = strpos($target, ':') === false;
-        if ($actionOnly) {
-            return $this->linkSegmented($this->currentController, $target, $parameters);
-        } else {
-            $parts = explode(':', $target);
-
-            return $this->linkSegmented($parts[0], $parts[1], $parameters);
-        }
-    }
-
-    public function css($file)
-    {
-        return $this->baseUrl . "css/" . $file;
-    }
-
-    public function js($file)
-    {
-        return $this->baseUrl . "js/" . $file;
     }
 }

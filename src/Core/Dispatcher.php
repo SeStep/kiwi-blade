@@ -4,7 +4,6 @@ namespace KiwiBlade\Core;
 
 use KiwiBlade\Bridges\Tracy\RequestPanel;
 use KiwiBlade\DI\Container;
-use KiwiBlade\DI\ContainerException;
 use KiwiBlade\Helpers\SessionHelper;
 use KiwiBlade\Http\Request;
 use KiwiBlade\View\Controller;
@@ -42,7 +41,6 @@ class Dispatcher
      *
      * @param Container         $container
      * @param ControllerFactory $controllerFactory
-     * @param array             $args
      */
     public function __construct(Container $container, ControllerFactory $controllerFactory)
     {

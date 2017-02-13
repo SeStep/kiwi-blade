@@ -88,10 +88,11 @@ class Configurator
      * @param string[]  $extensions
      * @throws ConfiguratorException
      */
-    private function registerExtensionsTo(Container $container, $extensions, $params){
+    private function registerExtensionsTo(Container $container, $extensions, $params)
+    {
         $registeredExtensions = [];
         foreach ($extensions as $extName => $extClass) {
-            if(array_key_exists($extClass, $registeredExtensions)){
+            if (array_key_exists($extClass, $registeredExtensions)) {
                 throw ConfiguratorException::extensionAlreadyRegistered($extClass);
             }
             $args = isset($params[$extName]) ? $params[$extName] : [];
